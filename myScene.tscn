@@ -1,9 +1,10 @@
-[gd_scene load_steps=20 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=21 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="Texture2D" uid="uid://yx0dnmbct1s6" path="res://grass2.png" id="2_7tnn8"]
 [ext_resource type="Texture2D" uid="uid://ba3on21ervos" path="res://grass.png" id="2_27gsx"]
 [ext_resource type="PackedScene" uid="uid://cmx1wmwpxb5b0" path="res://ball.tscn" id="4_ck66d"]
+[ext_resource type="Texture2D" uid="uid://1at0605e8btd" path="res://hand.png" id="5_b0go5"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -14,7 +15,7 @@ script/source = "extends Node2D
 
 func _on_spawn_timer_timeout():
 	if ball_scene == null:
-		print(\"Warning: Forget to drag Ball.tscn into the Inspector!\")
+		print(\"Warning: No Ball in the Scene!\")
 		return
 		
 	# Create the ball instance
@@ -61,63 +62,60 @@ var health = max_health
 var stamina = max_stamina
 var is_dashing = false
 var is_dead = false
-var last_facing_direction = Vector2.RIGHT # Default facing right
+var last_facing_direction = Vector2.RIGHT
 
 # --- Node References ---
 @onready var animations = $AnimationPlayer
 @onready var sprite = $Sprite2D
 @onready var health_bar = $Bars/HealthBar
 @onready var stamina_bar = $Bars/StaminaBar
+@onready var hand_pivot = $HandPivot
 
 var stamina_style: StyleBoxFlat
 
 func _ready():
-	# 1. Initialize Bars
+	# UI Setup
 	health_bar.max_value = max_health
 	health_bar.value = health
 	stamina_bar.max_value = max_stamina
 	stamina_bar.value = stamina
 	
-	# 2. Setup Stamina Color Style (Ensure StyleBoxFlat is in Inspector)
+	# Unique style for stamina color changes
 	var original_style = stamina_bar.get_theme_stylebox(\"fill\")
 	stamina_style = original_style.duplicate() 
 	stamina_bar.add_theme_stylebox_override(\"fill\", stamina_style)
 
-func _physics_process(delta):
-	if is_dead:
-		return
+func _process(_delta):
+	if is_dead: return
+	# Hand follows mouse
+	hand_pivot.look_at(get_global_mouse_position())
 
-	# 1. Regenerate Stamina
+func _physics_process(delta):
+	if is_dead: return
+
+	# 1. Stamina Regen & Color
 	if not is_dashing and stamina < max_stamina:
 		stamina += stamina_regen * delta
 		stamina = min(stamina, max_stamina)
 		stamina_bar.value = stamina
 
-	# 2. Handle Stamina Colors
-	if stamina < dash_cost:
-		stamina_style.bg_color = Color.RED
-	else:
-		stamina_style.bg_color = Color.ORANGE
+	stamina_style.bg_color = Color.RED if stamina < dash_cost else Color.ORANGE
 
-	# 3. Get Input Direction
+	# 2. Input & Facing
 	var direction = Input.get_vector(\"left\", \"right\", \"up\", \"down\")
 	
-	# Update the facing direction whenever the player moves
 	if direction != Vector2.ZERO and not is_dashing:
 		last_facing_direction = direction
 
-	# 4. Handle Dash
-	if Input.is_action_just_pressed(\"ui_accept\") and not is_dashing:
-		if stamina >= dash_cost:
-			start_dash()
+	# 3. Dash Input
+	if Input.is_action_just_pressed(\"ui_accept\") and not is_dashing and stamina >= dash_cost:
+		start_dash()
 
-	# 5. Apply Movement
+	# 4. Movement Execution
 	if is_dashing:
-		# Dash in the direction we were facing when the dash started
 		velocity = last_facing_direction * dash_speed
 	elif direction != Vector2.ZERO:
 		velocity = direction * speed
-		# Flip sprite based on X direction
 		if direction.x != 0:
 			sprite.flip_h = direction.x < 0
 	else:
@@ -130,24 +128,14 @@ func start_dash():
 	is_dashing = true
 	stamina -= dash_cost
 	stamina_bar.value = stamina
-	
-	# Play dash animation immediately
 	animations.play(\"Dash\")
-	
 	await get_tree().create_timer(dash_duration).timeout
 	is_dashing = false
 
 func update_animations(direction):
-	# Don't interrupt the dash animation while dashing
-	if is_dashing:
-		return
-		
-	var anim_to_play = \"Idle\"
-	if direction != Vector2.ZERO:
-		anim_to_play = \"Walk\"
-	else:
-		anim_to_play = \"Idle\"
-
+	if is_dashing or is_dead: return
+	
+	var anim_to_play = \"Walk\" if direction != Vector2.ZERO else \"Idle\"
 	if animations.current_animation != anim_to_play:
 		animations.play(anim_to_play)
 
@@ -357,6 +345,14 @@ offset_bottom = -21.0
 theme_override_styles/fill = SubResource("StyleBoxFlat_ck66d")
 value = 100.0
 show_percentage = false
+
+[node name="HandPivot" type="Node2D" parent="Player"]
+y_sort_enabled = true
+
+[node name="HandSprite" type="Sprite2D" parent="Player/HandPivot"]
+scale = Vector2(0.38159606, 0.38159606)
+texture = ExtResource("5_b0go5")
+offset = Vector2(30, 0)
 
 [node name="SpawnTimer" type="Timer" parent="."]
 wait_time = 0.5
