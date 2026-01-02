@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=25 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -408,8 +408,29 @@ corner_radius_top_right = 1
 corner_radius_bottom_right = 1
 corner_radius_bottom_left = 1
 
+[sub_resource type="Gradient" id="Gradient_0d41b"]
+offsets = PackedFloat32Array(0, 0.68827933)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_6bpsp"]
+gradient = SubResource("Gradient_0d41b")
+width = 512
+height = 512
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+
+[sub_resource type="Environment" id="Environment_0d41b"]
+background_mode = 3
+glow_enabled = true
+glow_intensity = 1.17
+glow_bloom = 0.43
+glow_hdr_luminance_cap = 0.5
+adjustment_enabled = true
+adjustment_brightness = 0.93
+adjustment_contrast = 1.37
+
 [node name="Node2D" type="Node2D"]
-position = Vector2(-32, 135)
+position = Vector2(-284.8501, 33.53784)
 script = SubResource("GDScript_b0go5")
 ball_scene = ExtResource("4_ck66d")
 bat_scene = ExtResource("2_0d41b")
@@ -486,8 +507,22 @@ offset = Vector2(40, 0)
 position = Vector2(40, 0)
 scale = Vector2(3, 3)
 
+[node name="PointLight2D" type="PointLight2D" parent="Player"]
+position = Vector2(-0.32629395, 0.56448364)
+energy = 0.96
+shadow_enabled = true
+texture = SubResource("GradientTexture2D_6bpsp")
+
 [node name="SpawnTimer" type="Timer" parent="."]
 wait_time = 0.5
 autostart = true
+
+[node name="DirectionalLight2D" type="DirectionalLight2D" parent="."]
+position = Vector2(49.673706, 0.56448364)
+energy = 0.75
+blend_mode = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_0d41b")
 
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
