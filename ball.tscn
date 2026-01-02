@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3 uid="uid://cmx1wmwpxb5b0"]
+
+[ext_resource type="Texture2D" uid="uid://v1xw606vw6v5" path="res://ball.png" id="1_x8fbi"]
+
+[sub_resource type="GDScript" id="GDScript_ck66d"]
+resource_name = "Ball"
+script/source = "extends Area2D
+
+var speed = 400.0
+var direction = Vector2.ZERO
+
+func _process(delta):
+	# Move the ball in the assigned direction
+	position += direction * speed * delta
+
+# This function runs when the ball hits something
+func _on_body_entered(body):
+	if body.has_method(\"take_damage\"):
+		body.take_damage(10) # Call the function we wrote earlier
+		queue_free() # Destroy the ball after hitting the player
+
+func _on_visible_on_screen_notifier_2d_screen_exited():
+	queue_free() # Destroy the ball if it misses the player to save memory
+"
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_ck66d"]
+
+[node name="Ball" type="Area2D"]
+scale = Vector2(0.2658814, 0.2658814)
+script = SubResource("GDScript_ck66d")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_x8fbi")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+scale = Vector2(3.3275092, 3.3275092)
+shape = SubResource("CircleShape2D_ck66d")
+
+[connection signal="body_entered" from="." to="." method="_on_body_entered"]
