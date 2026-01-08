@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=49 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -14,7 +14,13 @@
 [ext_resource type="Texture2D" uid="uid://cgdgggnucp1ar" path="res://gameOver.png" id="10_6egc1"]
 [ext_resource type="Texture2D" uid="uid://mnhgi1e11bn6" path="res://restart_btn.png" id="10_7jrj5"]
 [ext_resource type="Texture2D" uid="uid://xtmmjlxm12bj" path="res://BlitzBall.png" id="10_jr5n1"]
+[ext_resource type="Texture2D" uid="uid://1ax8lieix0vv" path="res://controls_btn.png" id="10_yf8n5"]
+[ext_resource type="Texture2D" uid="uid://vmo2cupobxxs" path="res://controls_button_pressed.png" id="11_epb23"]
 [ext_resource type="Texture2D" uid="uid://hkjv1ltbvl4y" path="res://restart_button_pressed.png" id="11_jr5n1"]
+[ext_resource type="Texture2D" uid="uid://dkkuqj87bsl2e" path="res://keys.png" id="13_vmpvm"]
+[ext_resource type="Texture2D" uid="uid://dohbvkfjysuab" path="res://spacebar.png" id="14_5g3p8"]
+[ext_resource type="Texture2D" uid="uid://bt3rp2f21h7di" path="res://mouse.png" id="15_c07hf"]
+[ext_resource type="Texture2D" uid="uid://cybvlgitx7loa" path="res://close_btn.png" id="16_5g3p8"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -517,6 +523,7 @@ script/source = "extends CanvasLayer
 
 @onready var start_menu = $StartMenu
 @onready var game_over_ui = $GameOverUI
+@onready var instruction_ui = $StartMenu/ControlsPanel
 @onready var end_score_label = $GameOverUI/EndScoreLabel
 @onready var transition_player = $TransitionPlayer
 @onready var transition_rect = $TransitionRect
@@ -533,6 +540,12 @@ func show_game_over(final_score: int):
 	
 	# Pause the game ONLY now, after the animation has finished playing
 	get_tree().paused = true
+
+func _on_controls_button_pressed():
+	instruction_ui.show()
+
+func _on_close_button_pressed():
+	instruction_ui.hide()
 
 func _on_play_button_pressed():
 	# 2. Start the game
@@ -570,6 +583,10 @@ outline_color = Color(0, 0, 0, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wg1xw"]
 bg_color = Color(0.1882353, 0.47843137, 0.7647059, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_vmpvm"]
+font = ExtResource("7_6bpsp")
+font_size = 12
 
 [sub_resource type="Animation" id="Animation_jr5n1"]
 resource_name = "fade_to_black"
@@ -790,15 +807,33 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -27.0
-offset_top = 178.0769
+offset_top = 133.30692
 offset_right = 27.0
-offset_bottom = 196.0769
+offset_bottom = 151.30692
 grow_horizontal = 2
 grow_vertical = 2
-scale = Vector2(6.4385633, 6.4385633)
+scale = Vector2(4.314852, 4.314852)
 pivot_offset = Vector2(27, 8)
 texture_normal = ExtResource("8_wg1xw")
 texture_pressed = ExtResource("9_4s481")
+
+[node name="ControlsButton" type="TextureButton" parent="UI/StartMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -27.0
+offset_top = 222.13934
+offset_right = 27.0
+offset_bottom = 240.13934
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(4.314852, 4.314852)
+pivot_offset = Vector2(27, 8)
+texture_normal = ExtResource("10_yf8n5")
+texture_pressed = ExtResource("11_epb23")
 
 [node name="NinePatchRect" type="NinePatchRect" parent="UI/StartMenu"]
 layout_mode = 1
@@ -822,6 +857,89 @@ layout_mode = 1
 offset_right = 40.0
 offset_bottom = 23.0
 text = "v0.0.1"
+
+[node name="ControlsPanel" type="ColorRect" parent="UI/StartMenu"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -250.00002
+offset_right = 300.0
+offset_bottom = 250.00002
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset = Vector2(300, 250)
+color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+
+[node name="keys" type="TextureRect" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 26.93695
+offset_top = 20.396027
+offset_right = 90.93695
+offset_bottom = 84.39603
+scale = Vector2(2.6501102, 2.6501102)
+texture = ExtResource("13_vmpvm")
+
+[node name="spacebar" type="TextureRect" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 33.421387
+offset_top = 156.39603
+offset_right = 97.42139
+offset_bottom = 220.39603
+scale = Vector2(2.6501102, 2.6501102)
+texture = ExtResource("14_5g3p8")
+
+[node name="mouse" type="TextureRect" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 42.4729
+offset_top = 295.396
+offset_right = 106.4729
+offset_bottom = 359.396
+scale = Vector2(2.6501102, 2.6501102)
+texture = ExtResource("15_c07hf")
+
+[node name="instructions1" type="Label" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 248.2594
+offset_top = 58.75
+offset_right = 555.2594
+offset_bottom = 131.75
+text = "Press W, A, S, D to MOVE
+Press E to pickup WEAPON"
+label_settings = SubResource("LabelSettings_vmpvm")
+
+[node name="instructions2" type="Label" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 248.2594
+offset_top = 217.75002
+offset_right = 555.2594
+offset_bottom = 290.75
+text = "Press SPACEBAR to DASH"
+label_settings = SubResource("LabelSettings_vmpvm")
+
+[node name="instructions3" type="Label" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 248.2594
+offset_top = 343.75
+offset_right = 555.2594
+offset_bottom = 416.75
+text = "Press Mouse Left-Click to
+use WEAPON"
+label_settings = SubResource("LabelSettings_vmpvm")
+
+[node name="CloseButton" type="TextureButton" parent="UI/StartMenu/ControlsPanel"]
+layout_mode = 0
+offset_left = 561.10846
+offset_top = 1.9784468
+offset_right = 577.10846
+offset_bottom = 19.978447
+scale = Vector2(2.3635502, 2.3635502)
+texture_normal = ExtResource("16_5g3p8")
+texture_pressed = ExtResource("16_5g3p8")
 
 [node name="TransitionPlayer" type="AnimationPlayer" parent="UI"]
 root_node = NodePath("../GameOverUI")
@@ -912,6 +1030,8 @@ autostart = true
 
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="pressed" from="UI/StartMenu/PlayButton" to="UI" method="_on_play_button_pressed"]
+[connection signal="pressed" from="UI/StartMenu/ControlsButton" to="UI" method="_on_controls_button_pressed"]
+[connection signal="pressed" from="UI/StartMenu/ControlsPanel/CloseButton" to="UI" method="_on_close_button_pressed"]
 [connection signal="pressed" from="UI/GameOverUI/RestartButton" to="UI" method="_on_restart_button_pressed"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="ItemSpawner" method="_on_timer_timeout"]
