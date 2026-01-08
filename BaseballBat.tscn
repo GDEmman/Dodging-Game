@@ -8,6 +8,7 @@ script/source = "# BaseballBat.gd
 extends Area2D
 
 var is_picked_up = false
+var hover_tween: Tween
 var player_in_range = null
 
 func _on_body_entered(body):
@@ -23,6 +24,20 @@ func _process(_delta):
 	if player_in_range and Input.is_action_just_pressed(\"interact\") and not is_picked_up:
 		is_picked_up = true
 		player_in_range.pick_up_weapon(self)
+
+func _ready():
+	start_hover_animation()
+
+func start_hover_animation():
+	hover_tween = create_tween().set_loops()
+	# Animates the Sprite2D specifically
+	hover_tween.tween_property($Sprite2D, \"position:x\", -10.0, 1.0).set_trans(Tween.TRANS_SINE)
+	hover_tween.tween_property($Sprite2D, \"position:x\", 0.0, 1.0).set_trans(Tween.TRANS_SINE)
+
+func stop_hover():
+	if hover_tween:
+		hover_tween.kill() # Stops the movement immediately
+	$Sprite2D.position = Vector2.ZERO # Resets sprite to the bat's center
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_quupa"]

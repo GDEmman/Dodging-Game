@@ -1,0 +1,63 @@
+[gd_scene load_steps=6 format=3 uid="uid://cbriadfqfocgu"]
+
+[ext_resource type="Texture2D" uid="uid://bvpdqjkb2jqvb" path="res://health.png" id="1_halrj"]
+
+[sub_resource type="GDScript" id="GDScript_halrj"]
+resource_name = "HealthPickable"
+script/source = "extends Area2D
+
+var hover_tween: Tween
+
+func _ready():
+	start_hover()
+
+func start_hover():
+	# 1. Pop-in effect
+	scale = Vector2.ZERO
+	create_tween().tween_property(self, \"scale\", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK)
+
+	# 2. Continuous bobbing effect
+	hover_tween = create_tween().set_loops()
+	hover_tween.tween_property($Sprite2D, \"position:y\", -8.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	hover_tween.tween_property($Sprite2D, \"position:y\", 0.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+func _on_body_entered(body):
+	if body.is_in_group(\"player\"):
+		# Heals player +10
+		body.health = min(body.health + 10, body.max_health)
+		if body.health_bar:
+			body.health_bar.value = body.health
+		queue_free()
+"
+
+[sub_resource type="Gradient" id="Gradient_halrj"]
+offsets = PackedFloat32Array(0, 0.67114097)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_0k7lb"]
+gradient = SubResource("Gradient_halrj")
+use_hdr = true
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_n0iy3"]
+size = Vector2(26, 26)
+
+[node name="Health" type="Area2D"]
+scale = Vector2(0.5462985, 0.5462985)
+collision_layer = 3
+collision_mask = 3
+script = SubResource("GDScript_halrj")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_halrj")
+
+[node name="PointLight2D" type="PointLight2D" parent="Sprite2D"]
+color = Color(0, 1, 0, 1)
+energy = 1.9
+texture = SubResource("GradientTexture2D_0k7lb")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_n0iy3")
+
+[connection signal="body_entered" from="." to="." method="_on_body_entered"]

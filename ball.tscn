@@ -8,10 +8,55 @@ script/source = "extends Area2D
 
 var speed = 400.0
 var direction = Vector2.ZERO
+var player = null
+
+# --- NEW: Add these so the Main script doesn't crash ---
+var is_swerving = false
+var is_uturn = false
+var is_combined_type = false
+
+# Animation/Movement helpers
+var time_passed = 0.0
+var velocity_multiplier = 1.0
+var has_passed_player = false
+
+func _ready():
+	player = get_tree().get_first_node_in_group(\"player\")
+	add_to_group(\"balls\")
 
 func _process(delta):
-	# Move the ball in the assigned direction
-	position += direction * speed * delta
+	time_passed += delta
+	
+	# --- Case 1: Combined Elite Ball (Swerve + U-Turn) ---
+	if is_combined_type and player:
+		handle_combined_movement(delta)
+		
+	# --- Case 2: Just U-Turn ---
+	elif is_uturn:
+		velocity_multiplier = move_toward(velocity_multiplier, -1.5, delta * 1.2)
+		position += direction * (speed * velocity_multiplier) * delta
+		
+	# --- Case 3: Just Swerving ---
+	elif is_swerving:
+		var side_dir = Vector2(-direction.y, direction.x)
+		var swerve = side_dir * cos(time_passed * 6.0) * 150.0
+		position += (direction * speed + swerve) * delta
+		
+	# --- Case 4: Normal Ball ---
+	else:
+		position += direction * speed * delta
+
+# Helper function for the Elite Ball
+func handle_combined_movement(delta):
+	var dist = global_position.distance_to(player.global_position)
+	if dist < 50: has_passed_player = true
+	
+	if has_passed_player:
+		velocity_multiplier = move_toward(velocity_multiplier, -1.8, delta * 2.0)
+	
+	var side_dir = Vector2(-direction.y, direction.x)
+	var swerve = side_dir * cos(time_passed * 6.0) * 180.0
+	position += (direction * (speed * velocity_multiplier) + swerve) * delta
 
 # This function runs when the ball hits something
 func _on_body_entered(body):
@@ -21,7 +66,6 @@ func _on_body_entered(body):
 
 func _on_visible_on_screen_notifier_2d_screen_exited():
 	queue_free() # Destroy the ball if it misses the player to save memory
-
 
 # Inside Ball.gd
 func _on_area_entered(area):

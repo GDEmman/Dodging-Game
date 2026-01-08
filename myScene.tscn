@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=30 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -6,6 +6,9 @@
 [ext_resource type="Texture2D" uid="uid://ba3on21ervos" path="res://grass.png" id="2_27gsx"]
 [ext_resource type="PackedScene" uid="uid://cmx1wmwpxb5b0" path="res://ball.tscn" id="4_ck66d"]
 [ext_resource type="Texture2D" uid="uid://1at0605e8btd" path="res://hand.png" id="5_b0go5"]
+[ext_resource type="FontFile" uid="uid://cqq5wrm0uo3t7" path="res://Pixeled.ttf" id="7_6bpsp"]
+[ext_resource type="PackedScene" uid="uid://cbriadfqfocgu" path="res://Health.tscn" id="8_qwt37"]
+[ext_resource type="PackedScene" uid="uid://bvvvseqhrynju" path="res://Coin.tscn" id="9_wg1xw"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -14,6 +17,8 @@ script/source = "extends Node2D
 @export var ball_scene: PackedScene
 @export var bat_scene: PackedScene
 @onready var player = $Player # Ensure this matches your player's node name!
+
+var ball_speed_multiplier = 1.0
 
 func _ready():
 	# Spawn the bat shortly after the game starts
@@ -29,8 +34,8 @@ func spawn_one_bat():
 	
 	# 2. Pick a random X and Y within that size
 	# We subtract a small margin (50) so it doesn't spawn exactly on the edge
-	var random_x = randf_range(50, viewport_size.x - 50)
-	var random_y = randf_range(50, viewport_size.y - 50)
+	var random_x = randf_range(50, viewport_size.x - 80)
+	var random_y = randf_range(50, viewport_size.y - 80)
 	
 	# 3. If your camera is following the player, the (0,0) point is different.
 	# We add the camera's top-left corner position to our random numbers.
@@ -45,19 +50,57 @@ func _on_spawn_timer_timeout():
 		print(\"Warning: No Ball in the Scene!\")
 		return
 		
-	# Create the ball instance
+	# 1. Create the ball instance
 	var ball = ball_scene.instantiate()
 	
-	# Pick a random spot outside the camera (700 pixels away)
+	# 2. Set base spawn position and direction (Outside camera view)
 	var random_angle = randf() * 2 * PI
-	var spawn_pos = player.global_position + Vector2(cos(random_angle), sin(random_angle)) * 700
+	var spawn_pos = player.global_position + Vector2(cos(random_angle), sin(random_angle)) * 750
 	
 	ball.global_position = spawn_pos
-	# Set the direction toward the player
 	ball.direction = (player.global_position - spawn_pos).normalized()
 	
-	# Add it to the scene
+	# 3. Apply the global speed multiplier from Leveling Up
+	ball.speed *= ball_speed_multiplier
+
+	# 4. DIFFICULTY LOGIC (Choosing the Ball Type)
+	
+	# TYPE A: COMBINED (Swerve + U-Turn) - Unlocks at Level 4
+	if player.current_level >= 4:
+		if randf() < 0.15: # 15% chance
+			ball.is_combined_type = true
+			ball.modulate = Color.VIOLET
+			add_child(ball)
+			return # Stop here so we don't apply other types below
+
+	# TYPE B: U-TURN ONLY - Unlocks at Level 3
+	if player.current_level >= 3:
+		if randf() < 0.20: # 20% chance
+			ball.is_uturn = true
+			ball.modulate = Color.ORANGE
+			add_child(ball)
+			return
+
+	# TYPE C: SWERVE ONLY - Unlocks at Level 2
+	if player.current_level >= 2:
+		if randf() < 0.30: # 30% chance
+			ball.is_swerving = true
+			ball.modulate = Color.PURPLE
+			add_child(ball)
+			return
+
+	# TYPE D: NORMAL BALL
+	# If no special conditions were met, it remains a standard ball
 	add_child(ball)
+
+func increase_difficulty():
+	var timer = $SpawnTimer 
+	if timer:
+		timer.wait_time = max(timer.wait_time * 0.85, 0.4)
+		
+	# Increase the speed multiplier by 10% each level
+	ball_speed_multiplier += 0.1
+	print(\"Difficulty Up! Spawn Rate: \", timer.wait_time, \" | Speed Multiplier: \", ball_speed_multiplier)
 "
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_7tnn8"]
@@ -83,6 +126,8 @@ script/source = "extends CharacterBody2D
 @export var stamina_regen = 25.0
 @export var max_health = 100
 @export var max_stamina = 100.0
+var next_level_milestone = 500
+var current_level = 1
 
 # --- State Variables ---
 var health = max_health
@@ -94,6 +139,7 @@ var last_facing_direction = Vector2.RIGHT
 var current_weapon = null
 var is_invincible = false
 var is_stunned = false
+var score = 0
 
 # --- Node References ---
 @onready var animations = $AnimationPlayer
@@ -103,8 +149,34 @@ var is_stunned = false
 @onready var hand_pivot = $HandPivot
 @onready var hand_sprite = $HandPivot/HandSprite
 @onready var weapon_slot = $HandPivot/HandSprite/WeaponSlot
+@onready var score_label = get_tree().get_first_node_in_group(\"ui_label\")
 
 var stamina_style: StyleBoxFlat
+
+func add_score(amount: int):
+	score += amount
+	if score_label:
+		score_label.text = \"Score: \" + str(score)
+	
+	# Check for Level Up
+	if score >= next_level_milestone:
+		level_up()
+
+func level_up():
+	current_level += 1
+	next_level_milestone += 500 # Set next target (1000, 1500, etc.)
+	
+	print(\"LEVEL UP! Level: \", current_level)
+	
+	# Find the Ball Spawner and tell it to go faster
+	var spawner = get_tree().get_first_node_in_group(\"spawner_node\")
+	if spawner and spawner.has_method(\"increase_difficulty\"):
+		spawner.increase_difficulty()
+	
+	# Visual feedback: Flash the score label
+	var t = create_tween()
+	t.tween_property(score_label, \"modulate\", Color.GREEN, 0.2)
+	t.tween_property(score_label, \"modulate\", Color.WHITE, 0.2)
 
 func _ready():
 	health_bar.max_value = max_health
@@ -208,15 +280,23 @@ func swing_bat():
 
 func pick_up_weapon(weapon_node):
 	current_weapon = weapon_node
+	
+	# 1. Stop the hover animation and reset sprite position
+	if weapon_node.has_method(\"stop_hover\"):
+		weapon_node.stop_hover()
+	
+	# 2. Attach to player
 	weapon_node.get_parent().remove_child(weapon_node)
 	weapon_slot.add_child(weapon_node)
 	
+	# 3. Reset the bat's transform to align with the hand
 	weapon_node.position = Vector2.ZERO
 	weapon_node.rotation = 0
+	weapon_node.z_index = 0 # Keeps bat behind the hand
 	
-	if weapon_node is Area2D:
-		weapon_node.set_deferred(\"monitoring\", false)
-		weapon_node.monitorable = true
+	# 4. Update collision monitoring
+	weapon_node.set_deferred(\"monitoring\", false)
+	weapon_node.monitorable = true
 
 func update_animations(direction):
 	if is_dashing or is_dead: return
@@ -429,7 +509,54 @@ adjustment_enabled = true
 adjustment_brightness = 0.93
 adjustment_contrast = 1.37
 
-[node name="Node2D" type="Node2D"]
+[sub_resource type="LabelSettings" id="LabelSettings_j03uu"]
+font = ExtResource("7_6bpsp")
+outline_size = 10
+outline_color = Color(0, 0, 0, 1)
+
+[sub_resource type="GDScript" id="GDScript_6bpsp"]
+resource_name = "ItemSpawner"
+script/source = "extends Node2D
+
+@export var health_scene: PackedScene
+@export var coin_scene: PackedScene
+
+# Your specific Camera Limits
+const LIMIT_LEFT = -1865
+const LIMIT_TOP = -948
+const LIMIT_RIGHT = 1274
+const LIMIT_BOTTOM = 955
+
+func _on_timer_timeout():
+	var camera = get_viewport().get_camera_2d()
+	if not camera: return
+
+	# 1. Get the current camera's view area
+	var screen_size = get_viewport_rect().size / camera.zoom
+	var cam_pos = camera.get_screen_center_position()
+	
+	# 2. Calculate potential spawn area based on what the player sees
+	var min_x = cam_pos.x - (screen_size.x / 2)
+	var max_x = cam_pos.x + (screen_size.x / 2)
+	var min_y = cam_pos.y - (screen_size.y / 2)
+	var max_y = cam_pos.y + (screen_size.y / 2)
+
+	# 3. CLAMP these values to your specific Camera Limits
+	# This ensures it spawns on screen, but never outside your map walls
+	var spawn_x = randf_range(max(min_x, LIMIT_LEFT), min(max_x, LIMIT_RIGHT))
+	var spawn_y = randf_range(max(min_y, LIMIT_TOP), min(max_y, LIMIT_BOTTOM))
+
+	var spawn_pos = Vector2(spawn_x, spawn_y)
+
+	# 4. Create the item
+	var item_to_spawn = coin_scene if randf() > 0.3 else health_scene
+	if item_to_spawn:
+		var instance = item_to_spawn.instantiate()
+		get_tree().current_scene.add_child(instance)
+		instance.global_position = spawn_pos
+"
+
+[node name="Node2D" type="Node2D" groups=["spawner_node"]]
 position = Vector2(-284.8501, 33.53784)
 script = SubResource("GDScript_b0go5")
 ball_scene = ExtResource("4_ck66d")
@@ -443,6 +570,8 @@ layer_0/tile_data = PackedInt32Array(-327687, 0, 0, -262151, 0, 0, -196615, 0, 0
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 position = Vector2(50, 0)
+collision_layer = 3
+collision_mask = 3
 script = SubResource("GDScript_wkv0y")
 
 [node name="Sprite2D" type="Sprite2D" parent="Player"]
@@ -461,11 +590,12 @@ libraries = {
 speed_scale = 8.0
 
 [node name="Camera2D" type="Camera2D" parent="Player"]
+scale = Vector2(0.66483015, 2.2524211)
 zoom = Vector2(1.5, 1.5)
-limit_left = -1575
-limit_top = -973
-limit_right = 1549
-limit_bottom = 920
+limit_left = -1865
+limit_top = -948
+limit_right = 1274
+limit_bottom = 955
 
 [node name="Bars" type="Control" parent="Player"]
 layout_mode = 3
@@ -525,4 +655,25 @@ blend_mode = 1
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_0d41b")
 
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="ScoreLabel" type="Label" parent="UI" groups=["ui_label"]]
+offset_left = 20.885544
+offset_top = 16.93422
+offset_right = 106.885544
+offset_bottom = 62.93422
+text = "Score: 0"
+label_settings = SubResource("LabelSettings_j03uu")
+
+[node name="ItemSpawner" type="Node2D" parent="."]
+script = SubResource("GDScript_6bpsp")
+health_scene = ExtResource("8_qwt37")
+coin_scene = ExtResource("9_wg1xw")
+
+[node name="Timer" type="Timer" parent="ItemSpawner"]
+wait_time = 5.0
+autostart = true
+
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
+[connection signal="timeout" from="ItemSpawner/Timer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ItemSpawner/Timer" to="ItemSpawner" method="_on_timer_timeout"]
