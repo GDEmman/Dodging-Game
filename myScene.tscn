@@ -1,4 +1,4 @@
-[gd_scene load_steps=30 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=42 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -8,7 +8,13 @@
 [ext_resource type="Texture2D" uid="uid://1at0605e8btd" path="res://hand.png" id="5_b0go5"]
 [ext_resource type="FontFile" uid="uid://cqq5wrm0uo3t7" path="res://Pixeled.ttf" id="7_6bpsp"]
 [ext_resource type="PackedScene" uid="uid://cbriadfqfocgu" path="res://Health.tscn" id="8_qwt37"]
+[ext_resource type="Texture2D" uid="uid://cggvny5esnihn" path="res://play_btn.png" id="8_wg1xw"]
+[ext_resource type="Texture2D" uid="uid://is2u4mdwwn7y" path="res://play_button_pressed.png" id="9_4s481"]
 [ext_resource type="PackedScene" uid="uid://bvvvseqhrynju" path="res://Coin.tscn" id="9_wg1xw"]
+[ext_resource type="Texture2D" uid="uid://cgdgggnucp1ar" path="res://gameOver.png" id="10_6egc1"]
+[ext_resource type="Texture2D" uid="uid://mnhgi1e11bn6" path="res://restart_btn.png" id="10_7jrj5"]
+[ext_resource type="Texture2D" uid="uid://xtmmjlxm12bj" path="res://BlitzBall.png" id="10_jr5n1"]
+[ext_resource type="Texture2D" uid="uid://hkjv1ltbvl4y" path="res://restart_button_pressed.png" id="11_jr5n1"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -46,51 +52,40 @@ func spawn_one_bat():
 	add_child(bat)
 
 func _on_spawn_timer_timeout():
-	if ball_scene == null:
-		print(\"Warning: No Ball in the Scene!\")
-		return
-		
-	# 1. Create the ball instance
+	if ball_scene == null: return
+	
+	# 1. Determine how many balls to spawn (1 extra ball every 5 levels, for example)
+	# Level 1-4: 1 ball | Level 5-9: 2 balls | Level 10+: 3 balls
+	var spawn_count = 1 + floor(player.current_level / 5.0)
+	
+	# 2. Loop to spawn the determined number of balls
+	for i in range(spawn_count):
+		spawn_single_ball()
+
+func spawn_single_ball():
 	var ball = ball_scene.instantiate()
 	
-	# 2. Set base spawn position and direction (Outside camera view)
+	# 3. Randomize spawn position (Keep your existing logic)
 	var random_angle = randf() * 2 * PI
 	var spawn_pos = player.global_position + Vector2(cos(random_angle), sin(random_angle)) * 750
 	
 	ball.global_position = spawn_pos
 	ball.direction = (player.global_position - spawn_pos).normalized()
 	
-	# 3. Apply the global speed multiplier from Leveling Up
+	# 4. Apply current speed multiplier
 	ball.speed *= ball_speed_multiplier
-
-	# 4. DIFFICULTY LOGIC (Choosing the Ball Type)
 	
-	# TYPE A: COMBINED (Swerve + U-Turn) - Unlocks at Level 4
-	if player.current_level >= 4:
-		if randf() < 0.15: # 15% chance
-			ball.is_combined_type = true
-			ball.modulate = Color.VIOLET
-			add_child(ball)
-			return # Stop here so we don't apply other types below
-
-	# TYPE B: U-TURN ONLY - Unlocks at Level 3
-	if player.current_level >= 3:
-		if randf() < 0.20: # 20% chance
-			ball.is_uturn = true
-			ball.modulate = Color.ORANGE
-			add_child(ball)
-			return
-
-	# TYPE C: SWERVE ONLY - Unlocks at Level 2
-	if player.current_level >= 2:
-		if randf() < 0.30: # 30% chance
-			ball.is_swerving = true
-			ball.modulate = Color.PURPLE
-			add_child(ball)
-			return
-
-	# TYPE D: NORMAL BALL
-	# If no special conditions were met, it remains a standard ball
+	# 5. Apply Elite/Special logic (Keep your logic from the previous step)
+	if player.current_level >= 4 and randf() < 0.15:
+		ball.is_combined_type = true
+		ball.modulate = Color.VIOLET
+	elif player.current_level >= 3 and randf() < 0.2:
+		ball.is_uturn = true
+		ball.modulate = Color.ORANGE
+	elif player.current_level >= 2 and randf() < 0.3:
+		ball.is_swerving = true
+		ball.modulate = Color.PURPLE
+		
 	add_child(ball)
 
 func increase_difficulty():
@@ -353,9 +348,16 @@ func _on_hit_box_area_entered(area):
 
 func die():
 	is_dead = true
-	velocity = Vector2.ZERO
-	animations.play(\"death\")
-	$CollisionShape2D.set_deferred(\"disabled\", true)
+	
+	# 1. Play player death animation
+	if animations.has_animation(\"death\"):
+		animations.play(\"death\")
+		await animations.animation_finished
+	
+	# 2. Trigger the UI transition
+	var ui_layer = get_tree().root.find_child(\"UI\", true, false)
+	if ui_layer and ui_layer.has_method(\"show_game_over_with_transition\"):
+		ui_layer.show_game_over_with_transition(score)
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_0d41b"]
@@ -509,10 +511,106 @@ adjustment_enabled = true
 adjustment_brightness = 0.93
 adjustment_contrast = 1.37
 
+[sub_resource type="GDScript" id="GDScript_7jrj5"]
+resource_name = "MenuController"
+script/source = "extends CanvasLayer
+
+@onready var start_menu = $StartMenu
+@onready var game_over_ui = $GameOverUI
+@onready var end_score_label = $GameOverUI/EndScoreLabel
+@onready var transition_player = $TransitionPlayer
+@onready var transition_rect = $TransitionRect
+
+func _ready():
+	# 1. Pause the game immediately when the app opens
+	get_tree().paused = true
+	start_menu.show()
+	game_over_ui.hide()
+
+func show_game_over(final_score: int):
+	end_score_label.text = \"Final Score: \" + str(final_score)
+	game_over_ui.show()
+	
+	# Pause the game ONLY now, after the animation has finished playing
+	get_tree().paused = true
+
+func _on_play_button_pressed():
+	# 2. Start the game
+	get_tree().paused = false
+	start_menu.hide()
+
+func _on_restart_button_pressed():
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	
+	# Make sure the screen is clear before reloading
+	transition_rect.modulate.a = 0 
+	
+	get_tree().reload_current_scene()
+
+func show_game_over_with_transition(final_score: int):
+	# 1. Start the fade animation
+	transition_player.play(\"fade_to_black\")
+	
+	# 2. Wait for the fade to finish
+	await transition_player.animation_finished
+	
+	# 3. Update text and show the UI
+	end_score_label.text = \"Final Score: \" + str(final_score)
+	game_over_ui.show()
+	
+	# 4. Pause the game logic
+	get_tree().paused = true
+"
+
 [sub_resource type="LabelSettings" id="LabelSettings_j03uu"]
 font = ExtResource("7_6bpsp")
 outline_size = 10
 outline_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wg1xw"]
+bg_color = Color(0.1882353, 0.47843137, 0.7647059, 1)
+
+[sub_resource type="Animation" id="Animation_jr5n1"]
+resource_name = "fade_to_black"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("../TransitionRect:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0), Color(1, 1, 1, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_teaji"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("../TransitionRect:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(1, 1, 1, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_yf8n5"]
+_data = {
+&"RESET": SubResource("Animation_teaji"),
+&"fade_to_black": SubResource("Animation_jr5n1")
+}
+
+[sub_resource type="LabelSettings" id="LabelSettings_6egc1"]
+font = ExtResource("7_6bpsp")
+outline_size = 10
+outline_color = Color(0.35686275, 0.43137255, 0.88235295, 1)
 
 [sub_resource type="GDScript" id="GDScript_6bpsp"]
 resource_name = "ItemSpawner"
@@ -656,6 +754,8 @@ blend_mode = 1
 environment = SubResource("Environment_0d41b")
 
 [node name="UI" type="CanvasLayer" parent="."]
+process_mode = 3
+script = SubResource("GDScript_7jrj5")
 
 [node name="ScoreLabel" type="Label" parent="UI" groups=["ui_label"]]
 offset_left = 20.885544
@@ -664,6 +764,142 @@ offset_right = 106.885544
 offset_bottom = 62.93422
 text = "Score: 0"
 label_settings = SubResource("LabelSettings_j03uu")
+
+[node name="StartMenu" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="UI/StartMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_wg1xw")
+
+[node name="PlayButton" type="TextureButton" parent="UI/StartMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -27.0
+offset_top = 178.0769
+offset_right = 27.0
+offset_bottom = 196.0769
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(6.4385633, 6.4385633)
+pivot_offset = Vector2(27, 8)
+texture_normal = ExtResource("8_wg1xw")
+texture_pressed = ExtResource("9_4s481")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="UI/StartMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -66.06061
+offset_right = 20.0
+offset_bottom = -26.060608
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(15.514091, 15.514091)
+pivot_offset = Vector2(20, 20)
+texture = ExtResource("10_jr5n1")
+
+[node name="versionLabel" type="Label" parent="UI/StartMenu"]
+layout_mode = 1
+offset_right = 40.0
+offset_bottom = 23.0
+text = "v0.0.1"
+
+[node name="TransitionPlayer" type="AnimationPlayer" parent="UI"]
+root_node = NodePath("../GameOverUI")
+libraries = {
+&"": SubResource("AnimationLibrary_yf8n5")
+}
+
+[node name="TransitionRect" type="ColorRect" parent="UI"]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+
+[node name="GameOverUI" type="Control" parent="UI"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="RestartButton" type="TextureButton" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -27.0
+offset_top = 151.50348
+offset_right = 27.0
+offset_bottom = 169.50348
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(6.4385633, 6.4385633)
+pivot_offset = Vector2(27, 8)
+texture_normal = ExtResource("10_7jrj5")
+texture_pressed = ExtResource("11_jr5n1")
+
+[node name="EndScoreLabel" type="Label" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -54.0
+offset_top = 25.315308
+offset_right = 54.0
+offset_bottom = 71.31531
+grow_horizontal = 2
+grow_vertical = 2
+text = "Score: 0"
+label_settings = SubResource("LabelSettings_6egc1")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NinePatchRect" type="NinePatchRect" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -145.61981
+offset_right = 20.0
+offset_bottom = -105.61981
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(12.347313, 12.347313)
+pivot_offset = Vector2(20, 20)
+texture = ExtResource("10_6egc1")
 
 [node name="ItemSpawner" type="Node2D" parent="."]
 script = SubResource("GDScript_6bpsp")
@@ -675,5 +911,7 @@ wait_time = 5.0
 autostart = true
 
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
+[connection signal="pressed" from="UI/StartMenu/PlayButton" to="UI" method="_on_play_button_pressed"]
+[connection signal="pressed" from="UI/GameOverUI/RestartButton" to="UI" method="_on_restart_button_pressed"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="ItemSpawner" method="_on_timer_timeout"]
