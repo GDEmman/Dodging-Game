@@ -1,11 +1,15 @@
-[gd_scene load_steps=6 format=3 uid="uid://bvvvseqhrynju"]
+[gd_scene load_steps=9 format=3 uid="uid://bvvvseqhrynju"]
 
+[ext_resource type="AudioStream" uid="uid://dil8n1rt31ka8" path="res://pickupCoin1.wav" id="1_fj540"]
 [ext_resource type="Texture2D" uid="uid://iuggk4413o12" path="res://coin.png" id="1_h5dih"]
+[ext_resource type="AudioStream" uid="uid://dbjq7qkyhmmoj" path="res://pickupCoin2.wav" id="2_kjs0g"]
+[ext_resource type="AudioStream" uid="uid://dpgu23s7bkpf4" path="res://pickupCoin3.wav" id="3_2bqf1"]
 
 [sub_resource type="GDScript" id="GDScript_h5dih"]
 resource_name = "CoinPickable"
 script/source = "extends Area2D
 
+@export var coin_sounds: Array[AudioStream]
 var hover_tween: Tween
 
 func _ready():
@@ -23,9 +27,26 @@ func start_hover():
 
 func _on_body_entered(body):
 	if body.is_in_group(\"player\"):
+		play_random_sound(coin_sounds)
 		if body.has_method(\"add_score\"):
 			body.add_score(100)
-			queue_free() # This stops the tween and deletes the coin
+		
+		# Hide the item immediately so it looks collected
+		visible = false
+		# Wait for the sound to finish before deleting the node
+		await get_tree().create_timer(0.5).timeout 
+		queue_free()
+
+func play_random_sound(sounds: Array[AudioStream]):
+	if sounds.size() > 0:
+		var random_index = randi() % sounds.size()
+		# We use a global AudioPlayer or create a temporary one
+		var temp_audio = AudioStreamPlayer.new()
+		get_tree().root.add_child(temp_audio)
+		temp_audio.stream = sounds[random_index]
+		temp_audio.play()
+		# Automatically delete the player when the sound finishes
+		temp_audio.finished.connect(temp_audio.queue_free)
 "
 
 [sub_resource type="Gradient" id="Gradient_h5dih"]
@@ -47,6 +68,7 @@ scale = Vector2(0.2352115, 0.2352115)
 collision_layer = 3
 collision_mask = 3
 script = SubResource("GDScript_h5dih")
+coin_sounds = Array[AudioStream]([ExtResource("1_fj540"), ExtResource("2_kjs0g"), ExtResource("3_2bqf1")])
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_h5dih")
@@ -60,5 +82,7 @@ height = 75.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_h5dih")
+
+[node name="CoinStreamPlayer" type="AudioStreamPlayer2D" parent="."]
 
 [connection signal="body_entered" from="." to="." method="_on_body_entered"]

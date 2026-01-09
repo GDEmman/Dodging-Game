@@ -1,4 +1,4 @@
-[gd_scene load_steps=49 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=60 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -6,21 +6,32 @@
 [ext_resource type="Texture2D" uid="uid://ba3on21ervos" path="res://grass.png" id="2_27gsx"]
 [ext_resource type="PackedScene" uid="uid://cmx1wmwpxb5b0" path="res://ball.tscn" id="4_ck66d"]
 [ext_resource type="Texture2D" uid="uid://1at0605e8btd" path="res://hand.png" id="5_b0go5"]
+[ext_resource type="AudioStream" uid="uid://c78mu4x0and0e" path="res://hit1.wav" id="5_jeju7"]
+[ext_resource type="AudioStream" uid="uid://dfa6076xsax35" path="res://hit2.wav" id="6_be56r"]
 [ext_resource type="FontFile" uid="uid://cqq5wrm0uo3t7" path="res://Pixeled.ttf" id="7_6bpsp"]
+[ext_resource type="AudioStream" uid="uid://cailyhmnpwqnw" path="res://hit3.wav" id="7_83gjb"]
 [ext_resource type="PackedScene" uid="uid://cbriadfqfocgu" path="res://Health.tscn" id="8_qwt37"]
+[ext_resource type="AudioStream" uid="uid://nw6aum46jr3h" path="res://dash1.wav" id="8_sjqhb"]
 [ext_resource type="Texture2D" uid="uid://cggvny5esnihn" path="res://play_btn.png" id="8_wg1xw"]
 [ext_resource type="Texture2D" uid="uid://is2u4mdwwn7y" path="res://play_button_pressed.png" id="9_4s481"]
+[ext_resource type="AudioStream" uid="uid://c2aw1erlpio8j" path="res://dash2.wav" id="9_vhynq"]
 [ext_resource type="PackedScene" uid="uid://bvvvseqhrynju" path="res://Coin.tscn" id="9_wg1xw"]
 [ext_resource type="Texture2D" uid="uid://cgdgggnucp1ar" path="res://gameOver.png" id="10_6egc1"]
 [ext_resource type="Texture2D" uid="uid://mnhgi1e11bn6" path="res://restart_btn.png" id="10_7jrj5"]
+[ext_resource type="AudioStream" uid="uid://bjedgby3epnyb" path="res://dash3.wav" id="10_erxrt"]
 [ext_resource type="Texture2D" uid="uid://xtmmjlxm12bj" path="res://BlitzBall.png" id="10_jr5n1"]
 [ext_resource type="Texture2D" uid="uid://1ax8lieix0vv" path="res://controls_btn.png" id="10_yf8n5"]
 [ext_resource type="Texture2D" uid="uid://vmo2cupobxxs" path="res://controls_button_pressed.png" id="11_epb23"]
 [ext_resource type="Texture2D" uid="uid://hkjv1ltbvl4y" path="res://restart_button_pressed.png" id="11_jr5n1"]
+[ext_resource type="AudioStream" uid="uid://b3mbrmvnp8d1r" path="res://swing1.wav" id="11_sjqhb"]
+[ext_resource type="AudioStream" uid="uid://bffm7ulo5qlwx" path="res://swing2.wav" id="12_vhynq"]
+[ext_resource type="AudioStream" uid="uid://d2yo4wk2lan6j" path="res://swing3.wav" id="13_erxrt"]
 [ext_resource type="Texture2D" uid="uid://dkkuqj87bsl2e" path="res://keys.png" id="13_vmpvm"]
 [ext_resource type="Texture2D" uid="uid://dohbvkfjysuab" path="res://spacebar.png" id="14_5g3p8"]
 [ext_resource type="Texture2D" uid="uid://bt3rp2f21h7di" path="res://mouse.png" id="15_c07hf"]
 [ext_resource type="Texture2D" uid="uid://cybvlgitx7loa" path="res://close_btn.png" id="16_5g3p8"]
+[ext_resource type="AudioStream" uid="uid://dvicfligny8fq" path="res://BallBlitz-ST2.mp3" id="22_c07hf"]
+[ext_resource type="AudioStream" uid="uid://c2sb10l2tft8t" path="res://BallBlitz-ST1.mp3" id="23_t0gyr"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -127,6 +138,9 @@ script/source = "extends CharacterBody2D
 @export var stamina_regen = 25.0
 @export var max_health = 100
 @export var max_stamina = 100.0
+@export var hit_sounds: Array[AudioStream]
+@export var dash_sounds: Array[AudioStream]
+@export var swing_sound: Array[AudioStream]
 var next_level_milestone = 500
 var current_level = 1
 
@@ -248,6 +262,7 @@ func start_dash():
 	stamina -= dash_cost
 	stamina_bar.value = stamina
 	animations.play(\"dash\")
+	play_random_sfx(dash_sounds)
 	await get_tree().create_timer(dash_duration).timeout
 	is_dashing = false
 
@@ -257,7 +272,7 @@ func swing_bat():
 	
 	# 1. Get the current global rotation
 	var start_rot = hand_sprite.global_rotation
-	
+	play_random_sfx(swing_sound)
 	# 2. Set the swing amount based on the side the player is facing
 	var swing_amount = 190 # Default for right side
 	
@@ -314,6 +329,7 @@ func take_damage(amount):
 	if is_dead: return
 	
 	health -= amount
+	play_random_sfx(hit_sounds)
 	health_bar.value = health
 	
 	# 1. Trigger the Hit Animation
@@ -364,6 +380,27 @@ func die():
 	var ui_layer = get_tree().root.find_child(\"UI\", true, false)
 	if ui_layer and ui_layer.has_method(\"show_game_over_with_transition\"):
 		ui_layer.show_game_over_with_transition(score)
+
+func play_random_sfx(sound_array: Array[AudioStream]):
+	if sound_array.size() == 0: return
+	
+	# Pick a random sound from the array
+	var random_sound = sound_array.pick_random()
+	
+	# Create a temporary audio player so sounds can overlap
+	var sfx_player = AudioStreamPlayer.new()
+	add_child(sfx_player)
+	
+	sfx_player.stream = random_sound
+	
+	# 2. Add variety: Slightly change the pitch each time
+	# This makes 3 sounds feel like many more!
+	sfx_player.pitch_scale = randf_range(0.9, 1.1)
+	
+	sfx_player.play()
+	
+	# Clean up the player when the sound is done
+	sfx_player.finished.connect(sfx_player.queue_free)
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_0d41b"]
@@ -527,6 +564,8 @@ script/source = "extends CanvasLayer
 @onready var end_score_label = $GameOverUI/EndScoreLabel
 @onready var transition_player = $TransitionPlayer
 @onready var transition_rect = $TransitionRect
+@onready var menu_music = $\"../MenuMusic\"
+@onready var game_music = $\"../GameMusic\"
 
 func _ready():
 	# 1. Pause the game immediately when the app opens
@@ -548,17 +587,20 @@ func _on_close_button_pressed():
 	instruction_ui.hide()
 
 func _on_play_button_pressed():
-	# 2. Start the game
 	get_tree().paused = false
 	start_menu.hide()
+	
+	# Swap the music
+	if menu_music.is_playing():
+		menu_music.stop()
+	
+	game_music.play()
 
 func _on_restart_button_pressed():
+	# When restarting, the scene reloads, and MenuMusic 
+	# will Autostart again because of its settings.
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	
-	# Make sure the screen is clear before reloading
-	transition_rect.modulate.a = 0 
-	
 	get_tree().reload_current_scene()
 
 func show_game_over_with_transition(final_score: int):
@@ -588,21 +630,6 @@ bg_color = Color(0.1882353, 0.47843137, 0.7647059, 1)
 font = ExtResource("7_6bpsp")
 font_size = 12
 
-[sub_resource type="Animation" id="Animation_jr5n1"]
-resource_name = "fade_to_black"
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("../TransitionRect:modulate")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 1),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [Color(1, 1, 1, 0), Color(1, 1, 1, 1)]
-}
-
 [sub_resource type="Animation" id="Animation_teaji"]
 length = 0.001
 tracks/0/type = "value"
@@ -616,6 +643,21 @@ tracks/0/keys = {
 "transitions": PackedFloat32Array(1),
 "update": 0,
 "values": [Color(1, 1, 1, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_jr5n1"]
+resource_name = "fade_to_black"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("../TransitionRect:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0), Color(1, 1, 1, 1)]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_yf8n5"]
@@ -688,6 +730,9 @@ position = Vector2(50, 0)
 collision_layer = 3
 collision_mask = 3
 script = SubResource("GDScript_wkv0y")
+hit_sounds = Array[AudioStream]([ExtResource("5_jeju7"), ExtResource("6_be56r"), ExtResource("7_83gjb")])
+dash_sounds = Array[AudioStream]([ExtResource("8_sjqhb"), ExtResource("9_vhynq"), ExtResource("10_erxrt")])
+swing_sound = Array[AudioStream]([ExtResource("11_sjqhb"), ExtResource("12_vhynq"), ExtResource("13_erxrt")])
 
 [node name="Sprite2D" type="Sprite2D" parent="Player"]
 texture = ExtResource("1_wkv0y")
@@ -1027,6 +1072,17 @@ coin_scene = ExtResource("9_wg1xw")
 [node name="Timer" type="Timer" parent="ItemSpawner"]
 wait_time = 5.0
 autostart = true
+
+[node name="MenuMusic" type="AudioStreamPlayer2D" parent="."]
+process_mode = 3
+stream = ExtResource("22_c07hf")
+autoplay = true
+parameters/looping = true
+
+[node name="GameMusic" type="AudioStreamPlayer2D" parent="."]
+process_mode = 3
+stream = ExtResource("23_t0gyr")
+parameters/looping = true
 
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="pressed" from="UI/StartMenu/PlayButton" to="UI" method="_on_play_button_pressed"]

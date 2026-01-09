@@ -1,11 +1,15 @@
-[gd_scene load_steps=6 format=3 uid="uid://cbriadfqfocgu"]
+[gd_scene load_steps=9 format=3 uid="uid://cbriadfqfocgu"]
 
+[ext_resource type="AudioStream" uid="uid://dthofq35qgaw4" path="res://health1.wav" id="1_dtxv0"]
 [ext_resource type="Texture2D" uid="uid://bvpdqjkb2jqvb" path="res://health.png" id="1_halrj"]
+[ext_resource type="AudioStream" uid="uid://b7el3vg0u2a6v" path="res://health2.wav" id="2_8t6ex"]
+[ext_resource type="AudioStream" uid="uid://cgs161xl6qbnb" path="res://health3.wav" id="3_ehraw"]
 
 [sub_resource type="GDScript" id="GDScript_halrj"]
 resource_name = "HealthPickable"
 script/source = "extends Area2D
 
+@export var health_sounds: Array[AudioStream]
 var hover_tween: Tween
 
 func _ready():
@@ -24,10 +28,25 @@ func start_hover():
 func _on_body_entered(body):
 	if body.is_in_group(\"player\"):
 		# Heals player +10
+		play_random_sound(health_sounds)
 		body.health = min(body.health + 10, body.max_health)
 		if body.health_bar:
 			body.health_bar.value = body.health
-		queue_free()
+			visible = false
+			# Wait for the sound to finish before deleting the node
+			await get_tree().create_timer(0.5).timeout
+			queue_free()
+
+func play_random_sound(sounds: Array[AudioStream]):
+	if sounds.size() > 0:
+		var random_index = randi() % sounds.size()
+		# We use a global AudioPlayer or create a temporary one
+		var temp_audio = AudioStreamPlayer.new()
+		get_tree().root.add_child(temp_audio)
+		temp_audio.stream = sounds[random_index]
+		temp_audio.play()
+		# Automatically delete the player when the sound finishes
+		temp_audio.finished.connect(temp_audio.queue_free)
 "
 
 [sub_resource type="Gradient" id="Gradient_halrj"]
@@ -48,6 +67,7 @@ scale = Vector2(0.5462985, 0.5462985)
 collision_layer = 3
 collision_mask = 3
 script = SubResource("GDScript_halrj")
+health_sounds = Array[AudioStream]([ExtResource("1_dtxv0"), ExtResource("2_8t6ex"), ExtResource("3_ehraw")])
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_halrj")
@@ -59,5 +79,7 @@ texture = SubResource("GradientTexture2D_0k7lb")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_n0iy3")
+
+[node name="HealthStreamPlayer" type="AudioStreamPlayer2D" parent="."]
 
 [connection signal="body_entered" from="." to="." method="_on_body_entered"]
