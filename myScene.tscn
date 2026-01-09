@@ -1,4 +1,4 @@
-[gd_scene load_steps=60 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=69 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -30,8 +30,13 @@
 [ext_resource type="Texture2D" uid="uid://dohbvkfjysuab" path="res://spacebar.png" id="14_5g3p8"]
 [ext_resource type="Texture2D" uid="uid://bt3rp2f21h7di" path="res://mouse.png" id="15_c07hf"]
 [ext_resource type="Texture2D" uid="uid://cybvlgitx7loa" path="res://close_btn.png" id="16_5g3p8"]
+[ext_resource type="PackedScene" uid="uid://cn06n68i3s55w" path="res://LeaderboardRow.tscn" id="16_vhynq"]
+[ext_resource type="Texture2D" uid="uid://dwkei0hjle4tt" path="res://button.png" id="22_0cbhj"]
 [ext_resource type="AudioStream" uid="uid://dvicfligny8fq" path="res://BallBlitz-ST2.mp3" id="22_c07hf"]
+[ext_resource type="Texture2D" uid="uid://2ddous0bt4yu" path="res://button_pressed.png" id="23_6xoyx"]
 [ext_resource type="AudioStream" uid="uid://c2sb10l2tft8t" path="res://BallBlitz-ST1.mp3" id="23_t0gyr"]
+[ext_resource type="Texture2D" uid="uid://ge4mxgb7vrtl" path="res://submit_button.png" id="32_aedqh"]
+[ext_resource type="Texture2D" uid="uid://dunn1ymr2j8hb" path="res://submit_button_pressed.png" id="33_gj3co"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -558,64 +563,177 @@ adjustment_contrast = 1.37
 resource_name = "MenuController"
 script/source = "extends CanvasLayer
 
+# Variables for the Leaderboard
+var final_score_to_submit: int = 0
+@export var row_scene: PackedScene
+
+# Node References
 @onready var start_menu = $StartMenu
 @onready var game_over_ui = $GameOverUI
-@onready var instruction_ui = $StartMenu/ControlsPanel
 @onready var end_score_label = $GameOverUI/EndScoreLabel
+@onready var name_input = $GameOverUI/NameEntry/Panel/LineEdit
+@onready var leaderboard_list = $GameOverUI/Leaderboard/ScrollContainer/VBoxContainer
+@onready var leaderboard_list_menu = $StartMenu/Leaderboard/ScrollContainer/VBoxContainer
 @onready var transition_player = $TransitionPlayer
 @onready var transition_rect = $TransitionRect
+
+# Music References (Adjust paths if necessary)
 @onready var menu_music = $\"../MenuMusic\"
 @onready var game_music = $\"../GameMusic\"
 
 func _ready():
-	# 1. Pause the game immediately when the app opens
+	# Initial Game State
 	get_tree().paused = true
 	start_menu.show()
 	game_over_ui.hide()
-
-func show_game_over(final_score: int):
-	end_score_label.text = \"Final Score: \" + str(final_score)
-	game_over_ui.show()
-	
-	# Pause the game ONLY now, after the animation has finished playing
-	get_tree().paused = true
-
-func _on_controls_button_pressed():
-	instruction_ui.show()
-
-func _on_close_button_pressed():
-	instruction_ui.hide()
+	transition_rect.modulate.a = 0
+	if menu_music: menu_music.play()
 
 func _on_play_button_pressed():
 	get_tree().paused = false
 	start_menu.hide()
+	if menu_music: menu_music.stop()
+	if game_music: game_music.play()
+
+func _on_controls_button_pressed():
+	$StartMenu/ControlsPanel.show()
+
+func _on_close_controls_button_pressed():
+	$StartMenu/ControlsPanel.hide()
+
+func _on_leaderboard_button_pressed():
+	$StartMenu/Leaderboard.show()
+	get_leaderboard_menu()
+
+func _on_close_leaderboard_button_pressed():
+	$StartMenu/Leaderboard.hide()
+
+func show_game_over_with_transition(score: int):
+	# 1. Store the score for SilentWolf
+	get_leaderboard()
+	final_score_to_submit = score
 	
-	# Swap the music
-	if menu_music.is_playing():
-		menu_music.stop()
+	# 2. Update UI text
+	if end_score_label:
+		end_score_label.text = \"Final Score: \" + str(score)
 	
-	game_music.play()
+	# 3. Play Transition
+	if transition_player:
+		transition_player.play(\"fade_to_black\")
+		await transition_player.animation_finished
+	
+	# 4. Show Game Over and Pause
+	game_over_ui.show()
+	get_tree().paused = true
+
+func _on_submit_button_pressed():
+	var player_name = name_input.text.strip_edges()
+	if player_name == \"\":
+		player_name = \"Anonymous\"
+	
+	# 1. We create the request
+	var score_request = SilentWolf.Scores.save_score(player_name, final_score_to_submit)
+	
+	# 2. We wait for the 'completed' signal which is standard for Godot 4 nodes
+	# If this fails, try: await score_request.sw_score_posted
+	await score_request.sw_save_score_complete
+	
+	print(\"Score submitted successfully!\")
+	$GameOverUI/NameEntry.hide()
+	$GameOverUI/RestartButton.show()
+	get_leaderboard()
+
+func get_leaderboard():
+	# 1. Clear old entries
+	for child in leaderboard_list.get_children():
+		child.queue_free()
+	
+	# 2. Fetch scores
+	var leaderboard_request = SilentWolf.Scores.get_scores(10)
+	var sw_result = await SilentWolf.Scores.sw_get_scores_complete
+	var scores = sw_result.scores
+	
+	# 3. Create the Headers (Optional but looks great)
+	# You can manually add a row with \"RANK\", \"NAME\", \"SCORE\" labels here.
+
+	# 4. Populate rows
+	for i in range(scores.size()):
+		var row = row_scene.instantiate()
+		leaderboard_list.add_child(row)
+		
+		# Find the labels inside the row scene
+		# Using % unique names in the Row scene makes this even easier!
+		row.get_node(\"PanelContainer/HBoxContainer/RankLabel\").text = \"#\" + str(i + 1)
+		row.get_node(\"PanelContainer/HBoxContainer/NameLabel\").text = str(scores[i].player_name)
+		row.get_node(\"PanelContainer/HBoxContainer/ScoreLabel\").text = str(int(scores[i].score))
+		
+		# Highlighting top 3
+		if i == 0: row.modulate = Color.GOLD      # 1st Place
+		elif i == 1: row.modulate = Color.SILVER  # 2nd Place
+		elif i == 2: row.modulate = Color.BURLYWOOD # 3rd Place
+		
+		var rank_colors = PackedColorArray([
+			Color.DARK_GOLDENROD, # 1st Place
+			Color.CADET_BLUE,     # 2nd Place
+			Color.CHOCOLATE       # 3rd Place
+		])
+		if i < rank_colors.size():
+			var current_color = rank_colors[i]
+			var parent_path = \"PanelContainer/HBoxContainer/\"
+			
+			# Loop through the specific labels to apply the color
+			for label_name in [\"RankLabel\", \"NameLabel\", \"ScoreLabel\"]:
+				var label_node = row.get_node(parent_path + label_name)
+				label_node.modulate = current_color
+
+func get_leaderboard_menu():
+	# 1. Clear old entries
+	for child in leaderboard_list_menu.get_children():
+		child.queue_free()
+	
+	# 2. Fetch scores
+	var leaderboard_request = SilentWolf.Scores.get_scores(10)
+	var sw_result = await SilentWolf.Scores.sw_get_scores_complete
+	var scores = sw_result.scores
+	
+	# 3. Create the Headers (Optional but looks great)
+	# You can manually add a row with \"RANK\", \"NAME\", \"SCORE\" labels here.
+
+	# 4. Populate rows
+	for i in range(scores.size()):
+		var row = row_scene.instantiate()
+		leaderboard_list_menu.add_child(row)
+		
+		# Find the labels inside the row scene
+		# Using % unique names in the Row scene makes this even easier!
+		row.get_node(\"PanelContainer/HBoxContainer/RankLabel\").text = \"#\" + str(i + 1)
+		row.get_node(\"PanelContainer/HBoxContainer/NameLabel\").text = str(scores[i].player_name)
+		row.get_node(\"PanelContainer/HBoxContainer/ScoreLabel\").text = str(int(scores[i].score))
+		
+		# Highlighting top 3
+		if i == 0: row.modulate = Color.GOLD      # 1st Place
+		elif i == 1: row.modulate = Color.SILVER  # 2nd Place
+		elif i == 2: row.modulate = Color.BURLYWOOD # 3rd Place
+		
+		var rank_colors = PackedColorArray([
+			Color.DARK_GOLDENROD, # 1st Place
+			Color.CADET_BLUE,     # 2nd Place
+			Color.CHOCOLATE       # 3rd Place
+		])
+		if i < rank_colors.size():
+			var current_color = rank_colors[i]
+			var parent_path = \"PanelContainer/HBoxContainer/\"
+			
+			# Loop through the specific labels to apply the color
+			for label_name in [\"RankLabel\", \"NameLabel\", \"ScoreLabel\"]:
+				var label_node = row.get_node(parent_path + label_name)
+				label_node.modulate = current_color
 
 func _on_restart_button_pressed():
-	# When restarting, the scene reloads, and MenuMusic 
-	# will Autostart again because of its settings.
 	Engine.time_scale = 1.0
 	get_tree().paused = false
+	transition_rect.modulate.a = 0
 	get_tree().reload_current_scene()
-
-func show_game_over_with_transition(final_score: int):
-	# 1. Start the fade animation
-	transition_player.play(\"fade_to_black\")
-	
-	# 2. Wait for the fade to finish
-	await transition_player.animation_finished
-	
-	# 3. Update text and show the UI
-	end_score_label.text = \"Final Score: \" + str(final_score)
-	game_over_ui.show()
-	
-	# 4. Pause the game logic
-	get_tree().paused = true
 "
 
 [sub_resource type="LabelSettings" id="LabelSettings_j03uu"]
@@ -626,9 +744,21 @@ outline_color = Color(0, 0, 0, 1)
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wg1xw"]
 bg_color = Color(0.1882353, 0.47843137, 0.7647059, 1)
 
+[sub_resource type="LabelSettings" id="LabelSettings_0cbhj"]
+font = ExtResource("7_6bpsp")
+font_size = 5
+font_color = Color(0.35686275, 0.43137255, 0.88235295, 1)
+
 [sub_resource type="LabelSettings" id="LabelSettings_vmpvm"]
 font = ExtResource("7_6bpsp")
 font_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_vhynq"]
+bg_color = Color(0.0039046279, 0.0039046279, 0.0039046279, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_vhynq"]
+font = ExtResource("7_6bpsp")
+font_size = 35
 
 [sub_resource type="Animation" id="Animation_teaji"]
 length = 0.001
@@ -670,6 +800,9 @@ _data = {
 font = ExtResource("7_6bpsp")
 outline_size = 10
 outline_color = Color(0.35686275, 0.43137255, 0.88235295, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sjqhb"]
+bg_color = Color(0.003921569, 0.003921569, 0.003921569, 1)
 
 [sub_resource type="GDScript" id="GDScript_6bpsp"]
 resource_name = "ItemSpawner"
@@ -818,6 +951,7 @@ environment = SubResource("Environment_0d41b")
 [node name="UI" type="CanvasLayer" parent="."]
 process_mode = 3
 script = SubResource("GDScript_7jrj5")
+row_scene = ExtResource("16_vhynq")
 
 [node name="ScoreLabel" type="Label" parent="UI" groups=["ui_label"]]
 offset_left = 20.885544
@@ -852,12 +986,12 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -27.0
-offset_top = 133.30692
+offset_top = 101.3801
 offset_right = 27.0
-offset_bottom = 151.30692
+offset_bottom = 119.3801
 grow_horizontal = 2
 grow_vertical = 2
-scale = Vector2(4.314852, 4.314852)
+scale = Vector2(3.4124367, 3.4124367)
 pivot_offset = Vector2(27, 8)
 texture_normal = ExtResource("8_wg1xw")
 texture_pressed = ExtResource("9_4s481")
@@ -870,15 +1004,51 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -27.0
-offset_top = 222.13934
+offset_top = 174.48254
 offset_right = 27.0
-offset_bottom = 240.13934
+offset_bottom = 192.48254
 grow_horizontal = 2
 grow_vertical = 2
-scale = Vector2(4.314852, 4.314852)
+scale = Vector2(3.4124367, 3.4124367)
 pivot_offset = Vector2(27, 8)
 texture_normal = ExtResource("10_yf8n5")
 texture_pressed = ExtResource("11_epb23")
+
+[node name="LeaderboardButton" type="TextureButton" parent="UI/StartMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -27.0
+offset_top = 242.24255
+offset_right = 27.0
+offset_bottom = 260.24255
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(3.4124365, 3.4124365)
+pivot_offset = Vector2(27, 8)
+texture_normal = ExtResource("22_0cbhj")
+texture_pressed = ExtResource("23_6xoyx")
+
+[node name="Label" type="Label" parent="UI/StartMenu/LeaderboardButton"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -26.597738
+offset_top = -8.503791
+offset_right = 28.402264
+offset_bottom = 5.496209
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.83406687, 0.83406687)
+pivot_offset = Vector2(26.46, 7.385)
+text = "LEADERBOARD"
+label_settings = SubResource("LabelSettings_0cbhj")
 
 [node name="NinePatchRect" type="NinePatchRect" parent="UI/StartMenu"]
 layout_mode = 1
@@ -986,6 +1156,77 @@ scale = Vector2(2.3635502, 2.3635502)
 texture_normal = ExtResource("16_5g3p8")
 texture_pressed = ExtResource("16_5g3p8")
 
+[node name="Leaderboard" type="Control" parent="UI/StartMenu"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -249.89996
+offset_top = -184.55997
+offset_right = 249.89996
+offset_bottom = 184.55997
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="UI/StartMenu/Leaderboard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -14.0
+offset_top = -12.0
+offset_right = 14.0
+offset_bottom = 12.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_vhynq")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/StartMenu/Leaderboard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/StartMenu/Leaderboard/ScrollContainer"]
+custom_minimum_size = Vector2(499.8, 369.12)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 50
+
+[node name="CloseButton2" type="TextureButton" parent="UI/StartMenu/Leaderboard"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = 2.1499023
+offset_top = -43.56001
+offset_right = 18.149902
+offset_bottom = -25.560009
+grow_horizontal = 0
+scale = Vector2(2.3635502, 2.3635502)
+texture_normal = ExtResource("16_5g3p8")
+texture_pressed = ExtResource("16_5g3p8")
+
+[node name="LeaderTitleLabel2" type="Label" parent="UI/StartMenu/Leaderboard"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -192.50006
+offset_top = -103.95111
+offset_right = 192.50006
+offset_bottom = -5.951111
+grow_horizontal = 2
+text = "LEADERBOARD"
+label_settings = SubResource("LabelSettings_vhynq")
+
 [node name="TransitionPlayer" type="AnimationPlayer" parent="UI"]
 root_node = NodePath("../GameOverUI")
 libraries = {
@@ -1003,6 +1244,7 @@ mouse_filter = 2
 color = Color(0.012617188, 0.012617188, 0.012617188, 1)
 
 [node name="GameOverUI" type="Control" parent="UI"]
+process_mode = 3
 visible = false
 layout_mode = 3
 anchors_preset = 15
@@ -1012,57 +1254,171 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="RestartButton" type="TextureButton" parent="UI/GameOverUI"]
+visible = false
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -27.0
-offset_top = 151.50348
-offset_right = 27.0
-offset_bottom = 169.50348
-grow_horizontal = 2
-grow_vertical = 2
-scale = Vector2(6.4385633, 6.4385633)
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -326.24994
+offset_top = -103.90997
+offset_right = -272.24994
+offset_bottom = -85.90997
+grow_horizontal = 0
+grow_vertical = 0
+scale = Vector2(4.0447807, 4.0447807)
 pivot_offset = Vector2(27, 8)
 texture_normal = ExtResource("10_7jrj5")
 texture_pressed = ExtResource("11_jr5n1")
 
 [node name="EndScoreLabel" type="Label" parent="UI/GameOverUI"]
+layout_direction = 1
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
+anchors_preset = 4
 anchor_top = 0.5
-anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -54.0
-offset_top = 25.315308
-offset_right = 54.0
-offset_bottom = 71.31531
-grow_horizontal = 2
+offset_left = 177.02295
+offset_top = 92.797
+offset_right = 353.02295
+offset_bottom = 138.797
 grow_vertical = 2
-text = "Score: 0"
+scale = Vector2(1.6302911, 1.6302911)
+text = "Final Score: 0"
 label_settings = SubResource("LabelSettings_6egc1")
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="NinePatchRect" type="NinePatchRect" parent="UI/GameOverUI"]
 layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 300.8061
+offset_top = -70.578
+offset_right = 340.8061
+offset_bottom = -30.578003
+grow_vertical = 2
+scale = Vector2(14.385043, 14.385043)
+pivot_offset = Vector2(20, 20)
+texture = ExtResource("10_6egc1")
+
+[node name="NameEntry" type="Control" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -546.85315
+offset_top = 190.13501
+offset_right = 53.14685
+offset_bottom = 290.135
+grow_horizontal = 0
+grow_vertical = 2
+scale = Vector2(0.83625054, 0.83625054)
+
+[node name="Panel" type="Panel" parent="UI/GameOverUI/NameEntry"]
+layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -20.0
-offset_top = -145.61981
-offset_right = 20.0
-offset_bottom = -105.61981
+offset_left = -300.0
+offset_top = -50.0
+offset_right = 300.0
+offset_bottom = 49.99997
 grow_horizontal = 2
 grow_vertical = 2
-scale = Vector2(12.347313, 12.347313)
-pivot_offset = Vector2(20, 20)
-texture = ExtResource("10_6egc1")
+pivot_offset = Vector2(300, 50)
+theme_override_styles/panel = SubResource("StyleBoxFlat_sjqhb")
+
+[node name="LineEdit" type="LineEdit" parent="UI/GameOverUI/NameEntry/Panel"]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 15.777649
+offset_top = -32.780243
+offset_right = 410.68402
+offset_bottom = 32.780243
+grow_vertical = 2
+placeholder_text = "Name here"
+max_length = 50
+emoji_menu_enabled = false
+
+[node name="SubmitButton" type="TextureButton" parent="UI/GameOverUI/NameEntry/Panel"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -172.70776
+offset_top = -27.782837
+offset_right = -118.70776
+offset_bottom = -9.782837
+grow_horizontal = 0
+grow_vertical = 2
+scale = Vector2(2.8255465, 2.8255465)
+texture_normal = ExtResource("32_aedqh")
+texture_pressed = ExtResource("33_gj3co")
+
+[node name="Leaderboard" type="Control" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -545.18713
+offset_top = -191.08185
+offset_right = -45.387207
+offset_bottom = 178.03809
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="UI/GameOverUI/Leaderboard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_vhynq")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/GameOverUI/Leaderboard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/GameOverUI/Leaderboard/ScrollContainer"]
+custom_minimum_size = Vector2(499.8, 369.12)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 50
+
+[node name="LeaderTitleLabel" type="Label" parent="UI/GameOverUI"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -502.12817
+offset_top = -283.256
+offset_right = -117.12805
+offset_bottom = -185.25601
+grow_horizontal = 0
+grow_vertical = 2
+text = "LEADERBOARD"
+label_settings = SubResource("LabelSettings_vhynq")
 
 [node name="ItemSpawner" type="Node2D" parent="."]
 script = SubResource("GDScript_6bpsp")
@@ -1087,7 +1443,10 @@ parameters/looping = true
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="pressed" from="UI/StartMenu/PlayButton" to="UI" method="_on_play_button_pressed"]
 [connection signal="pressed" from="UI/StartMenu/ControlsButton" to="UI" method="_on_controls_button_pressed"]
-[connection signal="pressed" from="UI/StartMenu/ControlsPanel/CloseButton" to="UI" method="_on_close_button_pressed"]
+[connection signal="pressed" from="UI/StartMenu/LeaderboardButton" to="UI" method="_on_leaderboard_button_pressed"]
+[connection signal="pressed" from="UI/StartMenu/ControlsPanel/CloseButton" to="UI" method="_on_close_controls_button_pressed"]
+[connection signal="pressed" from="UI/StartMenu/Leaderboard/CloseButton2" to="UI" method="_on_close_leaderboard_button_pressed"]
 [connection signal="pressed" from="UI/GameOverUI/RestartButton" to="UI" method="_on_restart_button_pressed"]
+[connection signal="pressed" from="UI/GameOverUI/NameEntry/Panel/SubmitButton" to="UI" method="_on_submit_button_pressed"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="ItemSpawner/Timer" to="ItemSpawner" method="_on_timer_timeout"]

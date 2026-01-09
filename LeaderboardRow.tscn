@@ -1,0 +1,66 @@
+[gd_scene load_steps=6 format=3 uid="uid://cn06n68i3s55w"]
+
+[ext_resource type="FontFile" uid="uid://cqq5wrm0uo3t7" path="res://Pixeled.ttf" id="1_jm0v7"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jm0v7"]
+bg_color = Color(0.8713106, 0.94261277, 1.0236179, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 20
+expand_margin_left = 10.0
+expand_margin_right = 10.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_nh5ym"]
+font = ExtResource("1_jm0v7")
+font_color = Color(0.6417024, 0.8401531, 0.99999946, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_pf6tx"]
+font = ExtResource("1_jm0v7")
+font_color = Color(0.6431373, 0.8392157, 1, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_jm0v7"]
+font = ExtResource("1_jm0v7")
+font_color = Color(0.6431373, 0.8392157, 1, 1)
+
+[node name="LeaderboardRow" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -240.69995
+offset_right = 240.69995
+offset_bottom = 46.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_jm0v7")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="PanelContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="RankLabel" type="Label" parent="PanelContainer/HBoxContainer"]
+layout_mode = 2
+text = "#1"
+label_settings = SubResource("LabelSettings_nh5ym")
+
+[node name="NameLabel" type="Label" parent="PanelContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Player Name"
+label_settings = SubResource("LabelSettings_pf6tx")
+
+[node name="ScoreLabel" type="Label" parent="PanelContainer/HBoxContainer"]
+layout_mode = 2
+text = "9999"
+label_settings = SubResource("LabelSettings_jm0v7")
