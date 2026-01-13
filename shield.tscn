@@ -1,0 +1,32 @@
+[gd_scene load_steps=4 format=3 uid="uid://brxe45frv2d40"]
+
+[ext_resource type="Texture2D" uid="uid://cjih61g1iw1bj" path="res://shield.png" id="1_vuocu"]
+
+[sub_resource type="GDScript" id="GDScript_nsxlm"]
+resource_name = "Powerup"
+script/source = "extends Area2D
+
+@export var type: String = \"shield\"
+
+func _on_body_entered(body):
+	if body.is_in_group(\"player\"):
+		if type == \"magnet\":
+			body.activate_magnet()
+		elif type == \"shield\":
+			body.activate_shield()
+		queue_free() # Remove the item from the ground
+"
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_nsxlm"]
+
+[node name="Shield" type="Area2D"]
+script = SubResource("GDScript_nsxlm")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.6906353, 0.6906353)
+texture = ExtResource("1_vuocu")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_nsxlm")
+
+[connection signal="body_entered" from="." to="." method="_on_body_entered"]

@@ -1,4 +1,4 @@
-[gd_scene load_steps=69 format=3 uid="uid://crsmkyh2e0s28"]
+[gd_scene load_steps=72 format=3 uid="uid://crsmkyh2e0s28"]
 
 [ext_resource type="Texture2D" uid="uid://cwtm3lt2u7ljl" path="res://base-character.png" id="1_wkv0y"]
 [ext_resource type="PackedScene" uid="uid://lbj4hfanfxj2" path="res://BaseballBat.tscn" id="2_0d41b"]
@@ -31,12 +31,15 @@
 [ext_resource type="Texture2D" uid="uid://bt3rp2f21h7di" path="res://mouse.png" id="15_c07hf"]
 [ext_resource type="Texture2D" uid="uid://cybvlgitx7loa" path="res://close_btn.png" id="16_5g3p8"]
 [ext_resource type="PackedScene" uid="uid://cn06n68i3s55w" path="res://LeaderboardRow.tscn" id="16_vhynq"]
+[ext_resource type="Texture2D" uid="uid://5sp463qs6erl" path="res://equipped_shield.png" id="17_h65by"]
+[ext_resource type="Texture2D" uid="uid://bmvvsk06t5gym" path="res://magnet.png" id="18_0eipl"]
 [ext_resource type="Texture2D" uid="uid://dwkei0hjle4tt" path="res://button.png" id="22_0cbhj"]
 [ext_resource type="AudioStream" uid="uid://dvicfligny8fq" path="res://BallBlitz-ST2.mp3" id="22_c07hf"]
 [ext_resource type="Texture2D" uid="uid://2ddous0bt4yu" path="res://button_pressed.png" id="23_6xoyx"]
 [ext_resource type="AudioStream" uid="uid://c2sb10l2tft8t" path="res://BallBlitz-ST1.mp3" id="23_t0gyr"]
 [ext_resource type="Texture2D" uid="uid://ge4mxgb7vrtl" path="res://submit_button.png" id="32_aedqh"]
 [ext_resource type="Texture2D" uid="uid://dunn1ymr2j8hb" path="res://submit_button_pressed.png" id="33_gj3co"]
+[ext_resource type="PackedScene" uid="uid://caomnc2m2ufh7" path="res://Box.tscn" id="38_gj3co"]
 
 [sub_resource type="GDScript" id="GDScript_b0go5"]
 resource_name = "Main Scene"
@@ -44,6 +47,7 @@ script/source = "extends Node2D
 
 @export var ball_scene: PackedScene
 @export var bat_scene: PackedScene
+@export var box_scene: PackedScene
 @onready var player = $Player # Ensure this matches your player's node name!
 
 var ball_speed_multiplier = 1.0
@@ -51,6 +55,29 @@ var ball_speed_multiplier = 1.0
 func _ready():
 	# Spawn the bat shortly after the game starts
 	spawn_one_bat()
+
+func get_random_screen_position(margin: float = 100.0) -> Vector2:
+	var viewport_rect = get_viewport().get_visible_rect()
+	# This transform accounts for camera position AND zoom
+	var screen_to_world = get_viewport().get_canvas_transform().affine_inverse()
+	
+	var top_left = screen_to_world * Vector2.ZERO
+	var bottom_right = screen_to_world * viewport_rect.size
+	
+	return Vector2(
+		randf_range(top_left.x + margin, bottom_right.x - margin),
+		randf_range(top_left.y + margin, bottom_right.y - margin)
+	)
+
+func spawn_box():
+	if box_scene == null: return
+	var box = box_scene.instantiate()
+	
+	# Use the helper!
+	box.global_position = get_random_screen_position(100.0)
+	
+	add_child(box)
+	print(\"Loot box spawned!\")
 
 func spawn_one_bat():
 	if bat_scene == null: return
@@ -83,6 +110,9 @@ func _on_spawn_timer_timeout():
 	# 2. Loop to spawn the determined number of balls
 	for i in range(spawn_count):
 		spawn_single_ball()
+	
+	if player.current_level >= 2 and randf() < 0.1:
+		spawn_box()
 
 func spawn_single_ball():
 	var ball = ball_scene.instantiate()
@@ -170,6 +200,11 @@ var score = 0
 @onready var hand_sprite = $HandPivot/HandSprite
 @onready var weapon_slot = $HandPivot/HandSprite/WeaponSlot
 @onready var score_label = get_tree().get_first_node_in_group(\"ui_label\")
+@onready var magnet_timer = $MagnetTimer
+@onready var shield_timer = $ShieldTimer
+
+var is_magnet_active: bool = false
+var is_shield_active: bool = false
 
 var stamina_style: StyleBoxFlat
 
@@ -231,6 +266,11 @@ func _process(_delta):
 		swing_bat()
 
 func _physics_process(delta):
+	if is_magnet_active:
+		for coin in get_tree().get_nodes_in_group(\"coins\"):
+			var dist = global_position.distance_to(coin.global_position)
+			if dist < 300: # Magnet range
+				coin.global_position = coin.global_position.move_toward(global_position, 400 * delta)
 	if is_dead or is_stunned: return # Movement is disabled if dead OR stunned
 	if is_dead: return
 
@@ -316,7 +356,7 @@ func pick_up_weapon(weapon_node):
 	weapon_node.z_index = 0 # Keeps bat behind the hand
 	
 	# 4. Update collision monitoring
-	weapon_node.set_deferred(\"monitoring\", false)
+	weapon_node.set_deferred(\"monitoring\", true)
 	weapon_node.monitorable = true
 
 func update_animations(direction):
@@ -333,6 +373,11 @@ func update_animations(direction):
 func take_damage(amount):
 	if is_dead: return
 	
+	if is_shield_active:
+		print(\"Shield blocked damage!\")
+		# Optional: Play a \"clink\" sound or show a shield spark effect here
+		return
+
 	health -= amount
 	play_random_sfx(hit_sounds)
 	health_bar.value = health
@@ -406,6 +451,26 @@ func play_random_sfx(sound_array: Array[AudioStream]):
 	
 	# Clean up the player when the sound is done
 	sfx_player.finished.connect(sfx_player.queue_free)
+
+func activate_magnet():
+	is_magnet_active = true
+	magnet_timer.start(10.0) # start() always resets the time to 10
+	print(\"Magnet Active!\")
+	$magnetSpriteActive.show()
+
+func activate_shield():
+	is_shield_active = true
+	shield_timer.start(10.0)
+	print(\"Shield Active!\")
+	$shieldSprite.show()
+
+func _on_magnet_timer_timeout():
+	is_magnet_active = false
+	$magnetSpriteActive.hide()
+
+func _on_shield_timer_timeout():
+	is_shield_active = false
+	$shieldSprite.hide()
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_0d41b"]
@@ -851,6 +916,7 @@ position = Vector2(-284.8501, 33.53784)
 script = SubResource("GDScript_b0go5")
 ball_scene = ExtResource("4_ck66d")
 bat_scene = ExtResource("2_0d41b")
+box_scene = ExtResource("38_gj3co")
 
 [node name="TileMap" type="TileMap" parent="."]
 z_index = -1
@@ -935,6 +1001,24 @@ position = Vector2(-0.32629395, 0.56448364)
 energy = 0.96
 shadow_enabled = true
 texture = SubResource("GradientTexture2D_6bpsp")
+
+[node name="MagnetTimer" type="Timer" parent="Player"]
+wait_time = 10.0
+one_shot = true
+
+[node name="ShieldTimer" type="Timer" parent="Player"]
+wait_time = 10.0
+one_shot = true
+
+[node name="shieldSprite" type="Sprite2D" parent="Player"]
+visible = false
+texture = ExtResource("17_h65by")
+
+[node name="magnetSpriteActive" type="Sprite2D" parent="Player"]
+visible = false
+position = Vector2(-0.3730774, -36.697025)
+scale = Vector2(0.35423267, 0.35423267)
+texture = ExtResource("18_0eipl")
 
 [node name="SpawnTimer" type="Timer" parent="."]
 wait_time = 0.5
@@ -1440,6 +1524,8 @@ process_mode = 3
 stream = ExtResource("23_t0gyr")
 parameters/looping = true
 
+[connection signal="timeout" from="Player/MagnetTimer" to="Player" method="_on_magnet_timer_timeout"]
+[connection signal="timeout" from="Player/ShieldTimer" to="Player" method="_on_shield_timer_timeout"]
 [connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="pressed" from="UI/StartMenu/PlayButton" to="UI" method="_on_play_button_pressed"]
 [connection signal="pressed" from="UI/StartMenu/ControlsButton" to="UI" method="_on_controls_button_pressed"]

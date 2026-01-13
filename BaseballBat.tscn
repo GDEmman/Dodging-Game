@@ -11,6 +11,16 @@ var is_picked_up = false
 var hover_tween: Tween
 var player_in_range = null
 
+func _on_area_entered(area):
+	var player = get_tree().get_first_node_in_group(\"player\")
+	
+	if is_picked_up and player and player.is_swinging:
+		if area.has_method(\"take_damage\"):
+			# Disable the box's monitoring immediately so it can't be hit twice
+			area.set_deferred(\"monitorable\", false) 
+			area.take_damage()
+			print(\"Hit the box!\")
+
 func _on_body_entered(body):
 	if body.has_method(\"pick_up_weapon\"):
 		player_in_range = body
@@ -46,8 +56,8 @@ height = 32.0
 
 [node name="BaseballBat" type="Area2D"]
 rotation = 1.5707964
-collision_layer = 8
-collision_mask = 9
+collision_layer = 12
+collision_mask = 13
 script = SubResource("GDScript_quupa")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]

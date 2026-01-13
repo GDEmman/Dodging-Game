@@ -1,0 +1,60 @@
+[gd_scene load_steps=7 format=3 uid="uid://caomnc2m2ufh7"]
+
+[ext_resource type="Texture2D" uid="uid://cbbdud5jxq5dm" path="res://box.png" id="1_0bkxv"]
+[ext_resource type="PackedScene" uid="uid://cnyqq0pvircxa" path="res://magnet.tscn" id="1_speaj"]
+[ext_resource type="PackedScene" uid="uid://brxe45frv2d40" path="res://shield.tscn" id="2_bybq8"]
+
+[sub_resource type="GDScript" id="GDScript_0bkxv"]
+resource_name = "Box"
+script/source = "extends Area2D
+
+@export var magnet_scene: PackedScene = preload(\"res://Magnet.tscn\")
+@export var shield_scene: PackedScene = preload(\"res://Shield.tscn\")
+
+func take_damage():
+	# Disable collisions immediately so the player can walk through 
+	# the spot where the box was while the animation plays
+	$StaticBody2D/CollisionShape2D.set_deferred(\"disabled\", true)
+	
+	var chance = randf()
+	if chance < 0.4:
+		call_deferred(\"spawn_item\", magnet_scene)
+	elif chance < 0.8:
+		call_deferred(\"spawn_item\", shield_scene)
+	
+	queue_free()
+
+func spawn_item(item_scene):
+	var item = item_scene.instantiate()
+	get_parent().add_child(item)
+	item.global_position = global_position
+
+func _on_area_entered(area):
+	print(\"Bat touched something named: \", area.name)
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6xnmj"]
+size = Vector2(16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_speaj"]
+size = Vector2(15.621822, 15.621819)
+
+[node name="Box" type="Area2D"]
+scale = Vector2(1.9203907, 1.9203907)
+collision_layer = 4
+collision_mask = 5
+script = SubResource("GDScript_0bkxv")
+magnet_scene = ExtResource("1_speaj")
+shield_scene = ExtResource("2_bybq8")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_0bkxv")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_6xnmj")
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+scale = Vector2(1.0000002, 1.0000002)
+shape = SubResource("RectangleShape2D_speaj")
