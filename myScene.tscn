@@ -1155,7 +1155,7 @@ texture = ExtResource("10_jr5n1")
 layout_mode = 1
 offset_right = 40.0
 offset_bottom = 23.0
-text = "v0.0.1"
+text = "v0.1.1"
 
 [node name="ControlsPanel" type="ColorRect" parent="UI/StartMenu"]
 visible = false
